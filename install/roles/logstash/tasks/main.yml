@@ -128,7 +128,7 @@
   when: ansible_os_family == 'RedHat' and ipv6loadable.rc != 1
   ignore_errors: true
 
-- include: ipv6-grub-disable.yml
+- ansible.builtin.include_tasks: ipv6-grub-disable.yml
 
 - name: Disabling IPv6 via sysconfig/network
   lineinfile:
