@@ -70,12 +70,11 @@
   register: logstash_unit_copied
   become: true
 
-- name: Reload Systemd if we copied in logstash.service unit file
+- name: Reload Systemd if we copied in logstash.service unit file  # noqa: no-handler
   ansible.builtin.systemd:
     daemon_reload: true
   become: true
   when: logstash_unit_copied.changed
-
 # we need a workaround for netty wanting to use /tmp
 # on most systems this is mounted via noexec for security reasons
 # https://discuss.elastic.co/t/problem-with-cipher-in-beat-input/67841/5

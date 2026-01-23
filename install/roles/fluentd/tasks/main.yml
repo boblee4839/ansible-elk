@@ -53,7 +53,7 @@
        {{ ansible_distribution_release }} contrib
        state: present
        filename: fluentd
-   
+
     - name: Install fluentd
       ansible.builtin.apt:
         name: td-agent
