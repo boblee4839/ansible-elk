@@ -48,11 +48,11 @@
 
     - name: Add Fluentd repository
       ansible.builtin.apt_repository:
-      repo: >-
-       deb https://packages.treasuredata.com/4/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/
-       {{ ansible_distribution_release }} contrib
-       state: present
-       filename: fluentd
+        repo: >-
+          deb https://packages.treasuredata.com/4/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/
+          {{ ansible_distribution_release }} contrib
+        state: present
+        filename: fluentd
 
     - name: Install fluentd
       ansible.builtin.apt:
@@ -95,15 +95,15 @@
         line: 'subjectAltName = "IP: {{ ansible_default_ipv4.address }}"'
         regexp: '^ Extensions for a typical CA'
         insertbefore: '# Extensions for a typical CA'
-        backup: yes
+        backup: true
       when: subject_alt_name_exists.stdout | int == 0
 
 - name: Install fluentd elasticsearch plugin
   community.general.gem:
     name: fluent-plugin-elasticsearch
     state: latest
-    include_dependencies: yes
-    user_install: no
+    include_dependencies: true
+    user_install: false
     executable: /usr/sbin/td-agent-gem
   become: true
 
@@ -111,8 +111,8 @@
   community.general.gem:
     name: fluent-plugin-beats
     state: latest
-    include_dependencies: yes
-    user_install: no
+    include_dependencies: true
+    user_install: false
     executable: /usr/sbin/td-agent-gem
   become: true
 
