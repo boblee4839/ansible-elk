@@ -3,79 +3,113 @@
 # Install/run logstash
 #
 
-- name: Copy logstash yum repo file
-  copy:
-    src=logstash.repo
-    dest=/etc/yum.repos.d/logstash.repo
-    owner=root
-    group=root
-    mode=0644
-  become: true
+- name: Set OpenSSL configuration path
+  ansible.builtin.set_fact:
+    openssl_conf_path: "{{ '/etc/pki/tls/openssl.cnf' if ansible_os_family == 'RedHat' else '/etc/ssl/openssl.cnf' }}"
 
-- name: Install logstash rpms
-  yum:
+- name: Copy logstash yum repo file
+  ansible.builtin.copy:
+    src: logstash.repo
+    dest: /etc/yum.repos.d/logstash.repo
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  when: ansible_os_family == 'RedHat'
+
+- name: Ensure dependencies are installed (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - gnupg
+    state: present
+    update_cache: true
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Add Elastic GPG key (Debian/Ubuntu)
+  ansible.builtin.apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Add Logstash repository (Debian/Ubuntu)
+  ansible.builtin.apt_repository:
+    repo: "{{ logstash_apt_repo | default('deb https://artifacts.elastic.co/packages/7.x/apt stable main') }}"
+    state: present
+    filename: elastic-7.x
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Install logstash
+  ansible.builtin.package:
     name: logstash
     state: present
   become: true
 
 - name: Copy logstash filter configuration
-  template:
-    src=logstash.conf.j2
-    dest=/etc/logstash/conf.d/logstash.conf
-    owner=logstash
-    group=logstash
-    mode=0644
+  ansible.builtin.template:
+    src: logstash.conf.j2
+    dest: /etc/logstash/conf.d/logstash.conf
+    owner: logstash
+    group: logstash
+    mode: '0644'
   become: true
 
 # workaround, sometimes they forget to package this
 # https://github.com/elastic/logstash/issues/1130
 - name: Ensure logstash systemd unit file is present
-  copy:
-    src=logstash.service
-    dest=/etc/systemd/system/logstash.service
-    owner=root
-    group=root
-    mode=0644
-    force=no
+  ansible.builtin.copy:
+    src: logstash.service
+    dest: /etc/systemd/system/logstash.service
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
   register: logstash_unit_copied
   become: true
 
 - name: Reload Systemd if we copied in logstash.service unit file
-  command: systemctl daemon-reload
-  when: logstash_unit_copied != 0
+  ansible.builtin.systemd:
+    daemon_reload: true
   become: true
+  when: logstash_unit_copied.changed
 
 # we need a workaround for netty wanting to use /tmp
 # on most systems this is mounted via noexec for security reasons
 # https://discuss.elastic.co/t/problem-with-cipher-in-beat-input/67841/5
 
 - name: Create tmpdir for logstash netty
-  file:
+  ansible.builtin.file:
     path: /usr/share/logstash/tmpfile
     state: directory
     owner: logstash
     group: logstash
-    mode: 0755
+    mode: '0755'
+  become: true
 
 - name: Apply logstash netty tmpdir workaround
-  lineinfile:
-    path=/etc/logstash/jvm.options
-    line='-Dio.netty.native.workdir=/usr/share/logstash/tmpfile/'
+  ansible.builtin.lineinfile:
+    path: /etc/logstash/jvm.options
+    line: '-Dio.netty.native.workdir=/usr/share/logstash/tmpfile/'
   become: true
 
 - name: Load OpenSSL CA Extended Configuration
-  template:
-    src=openssl_extras.cnf.j2
-    dest=/etc/pki/tls/openssl_extras.cnf
-    owner=root
-    group=root
-    mode=0644
+  ansible.builtin.template:
+    src: openssl_extras.cnf.j2
+    dest: "{{ openssl_conf_path | dirname }}/openssl_extras.cnf"
+    owner: root
+    group: root
+    mode: '0644'
   become: true
 
 - name: Check OpenSSL SANs (SubjectAltName) entry for CA
-  shell: grep "{{ ansible_default_ipv4.address }}" /etc/pki/tls/openssl.cnf | wc -l
+  ansible.builtin.shell:
+    cmd: grep "{{ ansible_default_ipv4.address }}" "{{ openssl_conf_path }}" | wc -l
   ignore_errors: true
   register: subjectAltName_exists
+  changed_when: false
   tags:
     # Skip ANSIBLE0012 Commands should not change things if nothing needs doing
     # Need to understand if an entry exists
@@ -83,60 +117,72 @@
   become: true
 
 - name: Add OpenSSL SANs (SubjectAltName) entry for CA
-  lineinfile:
-    dest: /etc/pki/tls/openssl.cnf
+  ansible.builtin.lineinfile:
+    dest: "{{ openssl_conf_path }}"
     line: 'subjectAltName = "IP: {{ ansible_default_ipv4.address }}"'
     regexp: '^ Extensions for a typical CA'
     insertbefore: '# Extensions for a typical CA'
-    backup: yes
-  when: subjectAltName_exists.stdout|int == 0
+    backup: true
+  when: subjectAltName_exists.stdout | int == 0
   become: true
 
 - name: Load filebeat JSON index template
-  uri:
+  ansible.builtin.uri:
     url: http://localhost:9200/_template/filebeat?pretty
     method: POST
     body: "{{ lookup('file', 'filebeat-index-template.json') }}"
     body_format: json
-    return_content: yes
+    return_content: true
   register: filebeatJSON_output
   until: '"json" in filebeatJSON_output and filebeatJSON_output.json.acknowledged == true'
   retries: 30
   delay: 10
   become: true
-  when: not install_elasticsearch_xpack or not install_logstash_xpack or not install_kibana_xpack
+  when: not install_elasticsearch_xpack | default(false) or not install_logstash_xpack | default(false) or not install_kibana_xpack | default(false)
 
 ## Disable IPv6 because logstash/udp syslog has issues with it.
 # https://github.com/logstash-plugins/logstash-input-syslog/issues/42
 - name: Disable IPv6 with sysctl
-  sysctl: name={{ item }} value=1 state=present
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: '1'
+    state: present
+    reload: true
   with_items:
     - net.ipv6.conf.all.disable_ipv6
     - net.ipv6.conf.default.disable_ipv6
     - net.ipv6.conf.lo.disable_ipv6
+  become: true
   ignore_errors: true
 
 - name: Determine if ipv6 is a loadable module
-  command: /sbin/lsmod | grep ipv6 | grep -v nf
+  ansible.builtin.command: /sbin/lsmod
   register: ipv6loadable
   ignore_errors: true
+  changed_when: false
 
-- name: Disable IPv6 via rmmod
-  lineinfile: "dest=/etc/modprobe.conf line='install ipv6 /bin/true' create=yes"
+- name: Disable IPv6 via modprobe.d
+  ansible.builtin.lineinfile:
+    dest: /etc/modprobe.d/disable-ipv6.conf
+    line: 'install ipv6 /bin/true'
+    create: true
+    mode: '0644'
   notify:
     - rmmodipv6
-  when: ansible_os_family == 'RedHat' and ipv6loadable.rc != 1
+  when: "'ipv6' in ipv6loadable.stdout"
   ignore_errors: true
+  become: true
 
 - ansible.builtin.include_tasks: ipv6-grub-disable.yml
 
-- name: Disabling IPv6 via sysconfig/network
-  lineinfile:
+- name: Disabling IPv6 via sysconfig/network (RedHat)
+  ansible.builtin.lineinfile:
     dest: /etc/sysconfig/network
     regexp: "^{{ item.regexp }}"
     line: "{{ item.line }}"
-    backup: yes
-    create: yes
+    backup: true
+    create: true
+    mode: '0644'
   with_items:
     - { regexp: 'NETWORKING_IPV6=.*', line: 'NETWORKING_IPV6=NO' }
     - { regexp: 'IPV6INIT=.*', line: 'IPV6INIT=no' }
@@ -145,20 +191,21 @@
     - restart NetworkManager
   when: ansible_os_family == 'RedHat'
   ignore_errors: true
+  become: true
 
 # X-Pack requires additional authentication
 - name: Load filebeat JSON index template (X-Pack enabled)
-  uri:
+  ansible.builtin.uri:
     url: http://localhost:9200/_template/filebeat?pretty
     method: POST
     user: elastic
-    password: "{{xpack_elastic_user_password}}"
+    password: "{{ xpack_elastic_user_password }}"
     body: "{{ lookup('file', 'filebeat-index-template.json') }}"
     body_format: json
-    return_content: yes
+    return_content: true
   register: filebeatJSON_output
   until: '"json" in filebeatJSON_output and filebeatJSON_output.json.acknowledged == true'
   retries: 30
   delay: 10
   become: true
-  when: install_elasticsearch_xpack|bool
+  when: install_elasticsearch_xpack | default(false) | bool

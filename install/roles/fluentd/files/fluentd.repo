@@ -1,5 +1,5 @@
-[treasuredata]
-name=TreasureData
-baseurl=http://packages.treasuredata.com/2/redhat/\$releasever/\$basearch
+[fluent-packages]
+name=Fluentd project packages for 6.x
+baseurl=https://packages.treasuredata.com
 gpgcheck=1
-gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
+gpgkey=https://packages.treasuredata.com

@@ -3,45 +3,59 @@
 # Install/run apache
 #
 
-- name: Install httpd and tools
-  yum:
-    name: [httpd, httpd-tools, python-httplib2]
+- name: Set OS dependent variables
+  set_fact:
+    apache_service: "{{ 'httpd' if ansible_os_family == 'RedHat' else 'apache2' }}"
+    apache_conf_dir: "{{ '/etc/httpd/conf.d' if ansible_os_family == 'RedHat' else '/etc/apache2/sites-enabled' }}"
+    apache_packages: "{{ ['httpd', 'httpd-tools', 'python3-httplib2'] if ansible_os_family == 'RedHat' else ['apache2', 'apache2-utils', 'python3-httplib2'] }}"
+
+- name: Install Apache and tools
+  package:
+    name: "{{ apache_packages }}"
+    state: present
   become: true
 
-# SELinux boolean for nginx
+# SELinux boolean for httpd
 - name: Apply SELinux boolean httpd_can_network_connect
-  seboolean: name=httpd_can_network_connect state=yes persistent=yes
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
   become: true
+  when: ansible_os_family == 'RedHat'
 
 # deploy kibana.conf with FQDN
 - name: Setup apache reverse proxy for kibana
   template:
-    src=kibana.conf.j2
-    dest=/etc/httpd/conf.d/kibana.conf
-    owner=root
-    group=root
-    mode=0644
+    src: kibana.conf.j2
+    dest: "{{ apache_conf_dir }}/kibana.conf"
+    owner: root
+    group: root
+    mode: '0644'
   become: true
-  register: httpd_needs_restart
+  register: kibana_conf
 
 # deploy basic httpd 8080 vhost
 - name: Setup httpd TCP/8080 vhost for SSL certificate
   template:
-    src=8080vhost.conf.j2
-    dest=/etc/httpd/conf.d/8080vhost.conf
-    owner=root
-    group=root
-    mode=0644
+    src: 8080vhost.conf.j2
+    dest: "{{ apache_conf_dir }}/8080vhost.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: vhost_conf
+
+- name: Ensure Apache is enabled and started
+  service:
+    name: "{{ apache_service }}"
+    state: started
+    enabled: true
   become: true
 
-# start httpd service
-- name: Start httpd service
-  command: systemctl restart httpd.service
-  ignore_errors: true
-  when: httpd_needs_restart != 0
+- name: Restart Apache if configuration changed
+  service:
+    name: "{{ apache_service }}"
+    state: restarted
   become: true
-
-- name: Set httpd to start on boot
-  command: systemctl enable httpd.service
-  ignore_errors: true
-  become: true
+  when: kibana_conf.changed or vhost_conf.changed

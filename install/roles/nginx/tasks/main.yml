@@ -3,63 +3,98 @@
 # Install/run nginx
 #
 
-- name: Check/Install EPEL Repo for nginx
-  yum: name={{epel_repo}}
-      state=present
+- name: Check/Install EPEL Repo for nginx (RHEL/Rocky)
+  ansible.builtin.package:
+    name: epel-release
+    state: present
   become: true
+  when: ansible_os_family == "RedHat"
 
-- name: Install nginx, httpd-tools, httplib2
-  yum:
-    name: [nginx, httpd-tools, python-httplib2]
+- name: Update apt cache (Debian/Ubuntu)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
   become: true
+  when: ansible_os_family == "Debian"
+
+- name: Install nginx and dependencies (RHEL/Rocky)
+  ansible.builtin.package:
+    name:
+      - nginx
+      - httpd-tools
+      - python3-httplib2
+    state: present
+  become: true
+  when: ansible_os_family == "RedHat"
+
+- name: Install nginx and dependencies (Debian/Ubuntu)
+  ansible.builtin.package:
+    name:
+      - nginx
+      - apache2-utils
+      - python3-httplib2
+    state: present
+  become: true
+  when: ansible_os_family == "Debian"
 
 # SELinux boolean for nginx
 - name: Apply SELinux boolean httpd_can_network_connect
-  seboolean: name=httpd_can_network_connect state=yes persistent=yes
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
   become: true
+  when: ansible_os_family == "RedHat"
 
 # create /etc/nginx/conf.d/ directory
 - name: Create nginx directory structure
-  file: path=/etc/nginx/conf.d/
-    state=directory
-    mode=0755
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d/
+    state: directory
+    mode: '0755'
   become: true
 
 # deploy kibana.conf with FQDN
 - name: Setup nginx reverse proxy for kibana
-  template:
-    src=kibana.conf.j2
-    dest=/etc/nginx/conf.d/kibana.conf
-    owner=root
-    group=root
-    mode=0644
+  ansible.builtin.template:
+    src: kibana.conf.j2
+    dest: /etc/nginx/conf.d/kibana.conf
+    owner: root
+    group: root
+    mode: '0644'
   become: true
-  register: nginx_needs_restart
+  register: kibana_conf
 
 # deploy basic nginx.conf 8080 vhost
 - name: Setup nginx TCP/8080 vhost for SSL certificate
-  template:
-    src=nginx.conf.j2
-    dest=/etc/nginx/nginx.conf
-    owner=root
-    group=root
-    mode=0644
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: '0644'
   become: true
+  register: nginx_conf
 
 # start nginx service
-- name: Start nginx service
-  command: systemctl restart nginx.service
-  ignore_errors: true
-  when: nginx_needs_restart != 0
+- name: Ensure nginx service is started and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
   become: true
 
-- name: Set nginx to start on boot
-  command: systemctl enable nginx.service
-  ignore_errors: true
+- name: Restart nginx if configuration changed
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
   become: true
+  when: kibana_conf.changed or nginx_conf.changed
 
 # we only want to enable EPEL for some packages
-- name: Remove EPEL Repo
-  yum: name={{epel_repo}}
-      state=absent
+- name: Remove EPEL Repo (RHEL/Rocky)
+  ansible.builtin.package:
+    name: epel-release
+    state: absent
   become: true
+  when: ansible_os_family == "RedHat"

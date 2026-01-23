@@ -7,125 +7,164 @@
 
 - name: Copy kibana yum repo file
   copy:
-    src=kibana.repo
-    dest=/etc/yum.repos.d/kibana.repo
-    owner=root
-    group=root
-    mode=0644
+    src: kibana.repo
+    dest: /etc/yum.repos.d/kibana.repo
+    owner: root
+    group: root
+    mode: '0644'
   become: true
+  when: ansible_os_family == 'RedHat'
 
-- name: Install kibana rpms
-  yum:
-    name: [kibana, unzip]
+- name: Install kibana packages
+  package:
+    name:
+      - kibana
+      - unzip
+    state: present
   become: true
 
 - name: Install local rsyslogd for fluentd
-  yum:
+  package:
     name: rsyslog
+    state: present
   become: true
-  when: (logging_backend == 'fluentd')
+  when: logging_backend == 'fluentd'
 
 - name: Setup local rsyslogd for fluentd
-  lineinfile: dest=/etc/rsyslog.conf \
-          line="*.* @localhost:{{ fluentd_syslog_port }}"
-  when: (logging_backend == 'fluentd')
-  register: rsyslog_updated
+  lineinfile:
+    dest: /etc/rsyslog.conf
+    line: "*.* @localhost:{{ fluentd_syslog_port }}"
+  when: logging_backend == 'fluentd'
+  register: fluentd_rsyslog_config
   become: true
 
 - name: Copy templated kibana.yml
   template:
-    src=kibana.yml.j2
-    dest=/etc/kibana/kibana.yml
-    owner=root
-    group=root
-    mode=0644
+    src: kibana.yml.j2
+    dest: /etc/kibana/kibana.yml
+    owner: root
+    group: root
+    mode: '0644'
   become: true
-  ignore_errors: true
 
 - name: Populate elasticsearch index with local logs via rsyslog
-  command: systemctl restart rsyslog.service
-  ignore_errors: true
-  when: rsyslog_updated != 0
+  service:
+    name: rsyslog
+    state: restarted
+  when:
+    - logging_backend == 'fluentd'
+    - fluentd_rsyslog_config.changed
   become: true
 
 - name: Check kibana users
-  stat: path=/etc/htpasswd.users
-  ignore_errors: true
-  register: kibana_user_pwfile_exists
+  stat:
+    path: /etc/htpasswd.users
+  register: kibana_user_pwfile
   become: true
 
 - name: Create kibana admin user
-  command: htpasswd -b -c /etc/htpasswd.users {{kibana_user}} {{kibana_password}}
-  ignore_errors: true
-  when: kibana_user_pwfile_exists != 0
+  command: htpasswd -b -c /etc/htpasswd.users {{ kibana_user }} {{ kibana_password }}
+  when: not kibana_user_pwfile.stat.exists
   become: true
 
 - name: Setup kibana service
-  service: name=kibana state=started enabled=true
+  service:
+    name: kibana
+    state: started
+    enabled: true
   become: true
 
 - name: Restart kibana server
-  command: systemctl restart kibana.service
-  when: apache_reverse_proxy|bool
+  service:
+    name: kibana
+    state: restarted
+  when: apache_reverse_proxy | bool
   become: true
 
 - name: Check Filebeat forwarder SSL certificate
-  stat: path=/usr/share/logstash/beat-forwarder.crt
-  ignore_errors: true
-  register: filebeat_forwarder_ssl_exists
+  stat:
+    path: /usr/share/logstash/beat-forwarder.crt
+  register: filebeat_forwarder_ssl
   become: true
 
 - name: Create SSL structure for Fluentd installs
   file:
     path: /usr/share/logstash
     state: directory
-  when: (logging_backend == 'fluentd')
+    mode: '0755'
+  when: logging_backend == 'fluentd'
   become: true
 
 - name: Create client forwarder SSL certificate
-  command: openssl req -subj '/CN={{ ansible_fqdn }}/' -config /etc/pki/tls/openssl_extras.cnf \
-    -x509 -days 3650 -batch -nodes -newkey rsa:2048 -keyout /usr/share/logstash/beat-forwarder.key \
+  command: >
+    openssl req -subj '/CN={{ ansible_fqdn }}/'
+    -config /etc/pki/tls/openssl_extras.cnf
+    -x509 -days 3650 -batch -nodes -newkey rsa:2048
+    -keyout /usr/share/logstash/beat-forwarder.key
     -out /usr/share/logstash/beat-forwarder.crt
-  ignore_errors: true
-  when: (filebeat_forwarder_ssl_exists != 0)
+  when: not filebeat_forwarder_ssl.stat.exists
   become: true
 
-- name: Check Filebeat forwarder SSL certificate copy
-  stat: path=/usr/share/nginx/html/beat-forwarder.crt
-  ignore_errors: true
-  register: filebeat_forwarder_ssl_client_copy_exists
-  when: (apache_reverse_proxy is none)
+- name: Set Nginx webroot path
+  set_fact:
+    nginx_webroot: "{{ '/var/www/html' if ansible_os_family == 'Debian' else '/usr/share/nginx/html' }}"
+
+- name: Check Filebeat forwarder SSL certificate copy (Nginx)
+  stat:
+    path: "{{ nginx_webroot }}/beat-forwarder.crt"
+  register: filebeat_ssl_nginx_copy
+  when: apache_reverse_proxy is none
   become: true
 
-- name: Check Filebeat forwarder SSL certificate copy
-  stat: path=/var/www/html/beat-forwarder.crt
-  ignore_errors: true
-  register: filebeat_forwarder_ssl_client_copy_exists
-  when: (apache_reverse_proxy)
+- name: Check Filebeat forwarder SSL certificate copy (Apache)
+  stat:
+    path: /var/www/html/beat-forwarder.crt
+  register: filebeat_ssl_apache_copy
+  when: apache_reverse_proxy | bool
   become: true
 
 - name: Copy Filebeat forwarder SSL certificate for nginx
-  command: cp /usr/share/logstash/beat-forwarder.crt /usr/share/nginx/html/beat-forwarder.crt
-  ignore_errors: true
-  when: ((filebeat_forwarder_ssl_client_copy_exists != 0) and (apache_reverse_proxy is none))
+  copy:
+    src: /usr/share/logstash/beat-forwarder.crt
+    dest: "{{ nginx_webroot }}/beat-forwarder.crt"
+    remote_src: true
+    mode: '0644'
+  when:
+    - apache_reverse_proxy is none
+    - not filebeat_ssl_nginx_copy.stat.exists
   become: true
 
 - name: Copy Filebeat forwarder SSL certificate key for nginx
-  command: cp /usr/share/logstash/beat-forwarder.key /usr/share/nginx/html/beat-forwarder.key
-  ignore_errors: true
-  when: ((filebeat_forwarder_ssl_client_copy_exists != 0) and (apache_reverse_proxy is none))
+  copy:
+    src: /usr/share/logstash/beat-forwarder.key
+    dest: "{{ nginx_webroot }}/beat-forwarder.key"
+    remote_src: true
+    mode: '0600'
+  when:
+    - apache_reverse_proxy is none
+    - not filebeat_ssl_nginx_copy.stat.exists
   become: true
 
 - name: Copy Filebeat forwarder SSL certificate for apache
-  command: cp /usr/share/logstash/beat-forwarder.crt /var/www/html/beat-forwarder.crt
-  ignore_errors: true
-  when: ((filebeat_forwarder_ssl_client_copy_exists != 0) and (apache_reverse_proxy))
+  copy:
+    src: /usr/share/logstash/beat-forwarder.crt
+    dest: /var/www/html/beat-forwarder.crt
+    remote_src: true
+    mode: '0644'
+  when:
+    - apache_reverse_proxy | bool
+    - not filebeat_ssl_apache_copy.stat.exists
   become: true
 
 - name: Copy Filebeat forwarder SSL certificate key for apache
-  command: cp /usr/share/logstash/beat-forwarder.key /var/www/html/beat-forwarder.key
-  ignore_errors: true
-  when: ((filebeat_forwarder_ssl_client_copy_exists != 0) and (apache_reverse_proxy))
+  copy:
+    src: /usr/share/logstash/beat-forwarder.key
+    dest: /var/www/html/beat-forwarder.key
+    remote_src: true
+    mode: '0600'
+  when:
+    - apache_reverse_proxy | bool
+    - not filebeat_ssl_apache_copy.stat.exists
   become: true
 
 - name: Set permissions on logstash certificate
@@ -133,8 +172,8 @@
     path: /usr/share/logstash/beat-forwarder.crt
     owner: logstash
     group: logstash
-    mode: 0600
-  when: (logging_backend != 'fluentd')
+    mode: '0600'
+  when: logging_backend != 'fluentd'
   become: true
 
 - name: Set permissions on logstash certificate key
@@ -142,17 +181,20 @@
     path: /usr/share/logstash/beat-forwarder.key
     owner: logstash
     group: logstash
-    mode: 0600
-  when: (logging_backend != 'fluentd')
+    mode: '0600'
+  when: logging_backend != 'fluentd'
   become: true
 
 # We are in the kibana playbook but starting logstash here now
 # This is needed because perms should be set on certificates before
 # logstash references them for filebeat SSL connections.
 - name: Enable logstash service
-  service: name=logstash state=started enabled=true
+  service:
+    name: logstash
+    state: started
+    enabled: true
   become: true
-  when: (logging_backend != 'fluentd')
+  when: logging_backend != 'fluentd'
 
 # For slower connections and to make sure ES is listening
 # we will wait for TCP/9200 to become available
@@ -169,26 +211,24 @@
 
 # We will use a more generic check if x-pack is installed as it wraps everything
 # in additional authentication making it difficult to interpret HTTP status
-# codes via success/fail.  There is probably a better way to do this but even
-# using uri/url module it is the only X-Pack service that will hangs waiting
-# for password input.
+# codes via success/fail.
 - name: Wait for elastic index to be available (X-Pack enabled only generic check)
   wait_for:
     host: localhost
-    port: '{{ es_local_port }}'
+    port: "{{ es_local_port }}"
     delay: 10
     connect_timeout: 5
     timeout: 420
     state: started
-  when: install_elasticsearch_xpack|bool
+  when: install_elasticsearch_xpack | bool
   become: true
 
 # We need to insert data to create an initial index, query if it exists
 - name: Check elasticsearch index for content
   uri:
-    url=http://localhost:9200/_cat/indices
-    method=GET
-    return_content=yes
+    url: http://localhost:9200/_cat/indices
+    method: GET
+    return_content: true
   register: elasticsearch_index
   when: not install_elasticsearch_xpack
   become: true
@@ -196,46 +236,52 @@
 # Make sure TCP/5000 is up and listening for logstash
 # logstash 5.x takes a long time to start for me
 # leaving this set to 7minutes before giving up
-- name: Check for TCP/{{ logstash_localsyslog_port }} logstash internal listener port, this may take a while
+- name: Check for TCP/{{ logstash_localsyslog_port }} logstash internal listener port
   wait_for:
     host: localhost
-    port: '{{ logstash_localsyslog_port }}'
+    port: "{{ logstash_localsyslog_port }}"
     delay: 10
     connect_timeout: 5
     timeout: 420
     state: started
-  when: (logging_backend != 'fluentd')
+  when: logging_backend != 'fluentd'
   become: true
 
 # Make sure TCP/5044 is up and listening for logstash
 # logstash 5.x takes a long time to start for me
 # leaving this set to 7minutes before giving up
-- name: Check for TCP/{{ logstash_syslog_port }} logstash external listener port, this may take a while
+- name: Check for TCP/{{ logstash_syslog_port }} logstash external listener port
   wait_for:
     host: localhost
-    port: '{{ logstash_syslog_port }}'
+    port: "{{ logstash_syslog_port }}"
     delay: 10
     connect_timeout: 5
     timeout: 420
     state: started
-  when: (logging_backend != 'fluentd')
+  when: logging_backend != 'fluentd'
   become: true
 
 # Populate elasticsearch with local syslog data
 - name: Populate elasticsearch index with local syslog data
-  lineinfile: dest=/etc/rsyslog.conf \
-          line="*.* @localhost:{{ logstash_localsyslog_port }}"
-  when: (logging_backend != 'fluentd')
-  register: rsyslog_updated
+  lineinfile:
+    dest: /etc/rsyslog.conf
+    line: "*.* @localhost:{{ logstash_localsyslog_port }}"
+  when: logging_backend != 'fluentd'
+  register: logstash_rsyslog_config
   become: true
 
 - name: Restart rsyslogd to populate elasticsearch index
-  command: systemctl restart rsyslog.service
-  ignore_errors: true
-  when: rsyslog_updated != 0
+  service:
+    name: rsyslog
+    state: restarted
+  when:
+    - logging_backend != 'fluentd'
+    - logstash_rsyslog_config.changed
   become: true
 
 - name: Refresh fluentd service
-  command: systemctl restart td-agent.service
-  when: (logging_backend == 'fluentd')
+  service:
+    name: td-agent
+    state: restarted
+  when: logging_backend == 'fluentd'
   become: true
