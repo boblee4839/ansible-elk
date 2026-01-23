@@ -4,3 +4,4 @@ meta/main.yml
 *.retry
 # exclude travis ci config files
 .travis.yml
+.ansible

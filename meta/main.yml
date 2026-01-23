@@ -4,16 +4,20 @@ galaxy_info:
   namespace: sadsfae
   description: Playbook for setting up an ELK/EFK stack and clients.
   issue_tracker_url: https://github.com/sadsfae/ansible-elk/issues
-  license: Apache
-  min_ansible_version: 1.9
+  license: Apache-2.0
+  min_ansible_version: "2.9"
   platforms:
-  - name: EL
-    versions:
-    - 7
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+        - "10"
   galaxy_tags:
     - elk
     - efk
     - elasticsearch
     - logstash
     - kibana
+
 dependencies: []
