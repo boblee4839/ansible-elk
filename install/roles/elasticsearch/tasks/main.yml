@@ -140,6 +140,47 @@
     group: elasticsearch
     mode: '0755'
 
+- name: Configure vm.max_map_count for Elasticsearch
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    state: present
+    sysctl_file: /etc/sysctl.d/99-elasticsearch.conf
+    reload: true
+  become: true
+
+- name: Create systemd override directory for elasticsearch
+  file:
+    path: /etc/systemd/system/elasticsearch.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Configure systemd limits for Elasticsearch
+  copy:
+    dest: /etc/systemd/system/elasticsearch.service.d/override.conf
+    content: |
+      [Service]
+      # Increase file descriptor limit
+      LimitNOFILE=65535
+      # Increase process/thread limit
+      LimitNPROC=4096
+      # Allow memory locking for bootstrap.memory_lock
+      LimitMEMLOCK=infinity
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: es_systemd_limits
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: true
+  become: true
+  when: es_systemd_limits.changed
+
 - name: Restart elasticsearch if configuration changed
   service:
     name: elasticsearch
@@ -150,7 +191,8 @@
     es_jvm_start_high.changed | default(false) or
     es_jvm_end_high.changed | default(false) or
     es_jvm_start_low.changed | default(false) or
-    es_jvm_end_low.changed | default(false)
+    es_jvm_end_low.changed | default(false) or
+    es_systemd_limits.changed | default(false)
 
 - name: Ensure elasticsearch service is started and enabled
   service:
