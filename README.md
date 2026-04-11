@@ -6,6 +6,29 @@ Ansible Playbook for setting up the ELK/EFK Stack and Filebeat client on remote 
 
 [![GA](https://github.com/sadsfae/ansible-elk/actions/workflows/ansible-lint.yml/badge.svg)](https://github.com/sadsfae/ansible-elk/actions)
 
+<!--toc:start-->
+
+- [ansible-elk](#ansible-elk)
+  - [Branch and Version Guide](#branch-and-version-guide)
+  - [What does it do?](#what-does-it-do)
+  - [Requirements](#requirements)
+    - [Supported Operating Systems](#supported-operating-systems)
+    - [Hardware Requirements](#hardware-requirements)
+    - [Software Requirements](#software-requirements)
+  - [Notes](#notes)
+  - [Migration from 6.x to 9.x](#migration-from-6x-to-9x)
+    - [Key Breaking Changes in ES 9.x](#key-breaking-changes-in-es-9x)
+  - [ELK/EFK Server Instructions](#elkefk-server-instructions)
+    - [Create your Kibana Index Pattern](#create-your-kibana-index-pattern)
+  - [ELK Client Instructions](#elk-client-instructions)
+  - [Legacy ELK Versions](#legacy-elk-versions)
+    - [Elasticsearch 6.x (RHEL7 Compatible)](#elasticsearch-6x-rhel7-compatible)
+    - [Elasticsearch 5.6 (Legacy)](#elasticsearch-56-legacy)
+    - [Elasticsearch 2.4 (Legacy)](#elasticsearch-24-legacy)
+    - [Video Tutorial](#video-tutorial)
+  - [File Hierarchy](#file-hierarchy)
+  <!--toc:end-->
+
 > [!IMPORTANT]
 > **Major Version Update:** We now deploy **Elasticsearch 9.x** with significant changes:
 >
@@ -18,12 +41,12 @@ Ansible Playbook for setting up the ELK/EFK Stack and Filebeat client on remote 
 
 Choose the appropriate branch based on your OS and desired Elasticsearch version:
 
-| Branch            | ELK Version | Supported OS                                 | Java Version | Use Case                                   |
-| ----------------- | ----------- | -------------------------------------------- | ------------ | ------------------------------------------ |
-| `master`          | **9.x**     | RHEL/Rocky 8+, Ubuntu 20.04+ LTS, Debian 11+ | Java 17      | **Latest features**, modern platforms only |
-| `6.8`             | **6.x**     | RHEL7/CentOS7, RHEL8+, Rocky, Fedora         | Java 8       | **RHEL7 support**, stable production       |
-| `5.6`             | **5.x**     | RHEL7/CentOS7+                               | Java 8       | Legacy deployments                         |
-| `2.4`             | **2.x**     | RHEL7/CentOS7+                               | Java 8       | Very old/resource-constrained systems      |
+| Branch   | ELK Version | Supported OS                                 | Java Version | Use Case                                   |
+| -------- | ----------- | -------------------------------------------- | ------------ | ------------------------------------------ |
+| `master` | **9.x**     | RHEL/Rocky 8+, Ubuntu 20.04+ LTS, Debian 11+ | Java 17      | **Latest features**, modern platforms only |
+| `6.8`    | **6.x**     | RHEL7/CentOS7, RHEL8+, Rocky, Fedora         | Java 8       | **RHEL7 support**, stable production       |
+| `5.6`    | **5.x**     | RHEL7/CentOS7+                               | Java 8       | Legacy deployments                         |
+| `2.4`    | **2.x**     | RHEL7/CentOS7+                               | Java 8       | Very old/resource-constrained systems      |
 
 > [!IMPORTANT]
 > Only the `master` branch is _supported_, although older branches may likely work they are not maintained or tested.
