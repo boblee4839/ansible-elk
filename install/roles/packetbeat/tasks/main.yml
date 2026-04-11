@@ -9,7 +9,7 @@
       - "{{ 'libpcap' if ansible_os_family == 'RedHat' else 'libpcap0.8' }}"
     state: present
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Generate packetbeat configuration template
   ansible.builtin.template:
@@ -19,7 +19,7 @@
     group: root
     mode: '0644'
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   register: packetbeat_config
 
 - name: Ensure packetbeat service is enabled and started
@@ -28,7 +28,7 @@
     state: started
     enabled: true
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Restart packetbeat service if configuration changed
   ansible.builtin.service:
@@ -36,5 +36,5 @@
     state: restarted
   become: true
   when:
-    - logging_backend != 'fluentd'
+    - effective_logging_backend != 'fluentd'
     - packetbeat_config.changed

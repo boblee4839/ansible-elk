@@ -19,7 +19,7 @@
 
     - name: Import curator GPG Key
       rpm_key:
-        key: http://packages.elastic.co/GPG-KEY-elasticsearch
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
         state: present
 
 - name: Setup Curator repository (Debian/Ubuntu)
@@ -35,13 +35,14 @@
 
     - name: Import curator GPG Key
       apt_key:
-        url: http://packages.elastic.co/GPG-KEY-elasticsearch
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
         state: present
 
     - name: Add Curator repository
       apt_repository:
-        repo: deb http://packages.elastic.co/curator/5/debian stable main
+        repo: deb https://artifacts.elastic.co/packages/9.x/apt stable main
         state: present
+        filename: curator-9.x
 
 - name: Install curator
   when: install_curator_tool

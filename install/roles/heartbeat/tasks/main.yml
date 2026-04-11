@@ -7,7 +7,7 @@
     name: heartbeat-elastic
     state: present
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Generate heartbeat configuration template
   ansible.builtin.template:
@@ -17,7 +17,7 @@
     group: root
     mode: '0644'
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   register: heartbeat_config
 
 - name: Ensure heartbeat service is started and enabled
@@ -26,7 +26,7 @@
     state: started
     enabled: true
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Restart heartbeat service if configuration changed
   ansible.builtin.service:
@@ -34,5 +34,5 @@
     state: restarted
   become: true
   when:
-    - logging_backend != 'fluentd'
+    - effective_logging_backend != 'fluentd'
     - heartbeat_config.changed

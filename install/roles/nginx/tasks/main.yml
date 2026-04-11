@@ -90,11 +90,3 @@
     state: restarted
   become: true
   when: kibana_conf.changed or nginx_conf.changed
-
-# we only want to enable EPEL for some packages
-- name: Remove EPEL Repo (RHEL/Rocky)
-  ansible.builtin.package:
-    name: epel-release
-    state: absent
-  become: true
-  when: ansible_os_family == "RedHat"

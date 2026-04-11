@@ -1,6 +1,9 @@
 ---
 #
-# Install/run fluentd
+# Install/run fluentd (fluent-package v6 LTS)
+#
+# Note: This role is only executed on platforms that support fluent-package v6.
+# The main playbook automatically falls back to logstash on unsupported platforms.
 #
 
 - name: Setup Fluentd Repository (RedHat/Rocky)
@@ -20,10 +23,10 @@
         key: https://packages.treasuredata.com/GPG-KEY-td-agent
         state: present
 
-    - name: Install fluentd and dependencies
+    - name: Install fluent-package and dependencies
       ansible.builtin.dnf:
         name:
-          - td-agent
+          - fluent-package
           - gcc
         state: present
 
@@ -46,23 +49,23 @@
         url: https://packages.treasuredata.com/GPG-KEY-td-agent
         state: present
 
-    - name: Add Fluentd repository
+    - name: Add fluent-package repository
       ansible.builtin.apt_repository:
         repo: >-
-          deb https://packages.treasuredata.com/4/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/
+          deb https://packages.treasuredata.com/lts/6/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/
           {{ ansible_distribution_release }} contrib
         state: present
-        filename: fluentd
+        filename: fluent-package
 
-    - name: Install fluentd
+    - name: Install fluent-package
       ansible.builtin.apt:
-        name: td-agent
+        name: fluent-package
         state: present
 
 - name: Setup fluentd configuration files
   ansible.builtin.template:
-    src: td-agent.conf.j2
-    dest: /etc/td-agent/td-agent.conf
+    src: fluentd.conf.j2
+    dest: /etc/fluent/fluentd.conf
     owner: root
     group: root
     mode: '0644'
@@ -98,13 +101,14 @@
         backup: true
       when: subject_alt_name_exists.stdout | int == 0
 
+# Install ES plugin (requires v6.0.0+ for Elasticsearch 9.x compatibility)
 - name: Install fluentd elasticsearch plugin
   community.general.gem:
     name: fluent-plugin-elasticsearch
     state: latest
     include_dependencies: true
     user_install: false
-    executable: /usr/sbin/td-agent-gem
+    executable: /usr/sbin/fluent-gem
   become: true
 
 - name: Install fluentd beats plugin
@@ -113,7 +117,7 @@
     state: latest
     include_dependencies: true
     user_install: false
-    executable: /usr/sbin/td-agent-gem
+    executable: /usr/sbin/fluent-gem
   become: true
 
 - name: Load filebeat JSON index template
@@ -127,14 +131,14 @@
 
 - name: Start and enable fluentd service
   ansible.builtin.service:
-    name: td-agent
+    name: fluentd
     state: started
     enabled: true
   become: true
 
 - name: Restart fluentd if config changed
   ansible.builtin.service:
-    name: td-agent
+    name: fluentd
     state: restarted
   when: fluentd_config.changed
   become: true

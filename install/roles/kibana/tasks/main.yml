@@ -43,13 +43,13 @@
     name: rsyslog
     state: present
   become: true
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
 
 - name: Setup local rsyslogd for fluentd
   lineinfile:
     dest: /etc/rsyslog.conf
     line: "*.* @localhost:{{ fluentd_syslog_port }}"
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
   register: fluentd_rsyslog_config
   become: true
 
@@ -67,7 +67,7 @@
     name: rsyslog
     state: restarted
   when:
-    - logging_backend == 'fluentd'
+    - effective_logging_backend == 'fluentd'
     - fluentd_rsyslog_config.changed
   become: true
 
@@ -107,13 +107,26 @@
     path: /usr/share/logstash
     state: directory
     mode: '0755'
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
+  become: true
+
+- name: Set OpenSSL configuration path
+  set_fact:
+    openssl_conf_path: "{{ '/etc/pki/tls/openssl.cnf' if ansible_os_family == 'RedHat' else '/etc/ssl/openssl.cnf' }}"
+
+- name: Load OpenSSL CA Extended Configuration
+  template:
+    src: openssl_extras.cnf.j2
+    dest: "{{ openssl_conf_path | dirname }}/openssl_extras.cnf"
+    owner: root
+    group: root
+    mode: '0644'
   become: true
 
 - name: Create client forwarder SSL certificate
   command: >
     openssl req -subj '/CN={{ ansible_fqdn }}/'
-    -config /etc/pki/tls/openssl_extras.cnf
+    -config {{ openssl_conf_path | dirname }}/openssl_extras.cnf
     -x509 -days 3650 -batch -nodes -newkey rsa:2048
     -keyout /usr/share/logstash/beat-forwarder.key
     -out /usr/share/logstash/beat-forwarder.crt
@@ -188,7 +201,7 @@
     owner: logstash
     group: logstash
     mode: '0600'
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   become: true
 
 - name: Set permissions on logstash certificate key
@@ -197,7 +210,7 @@
     owner: logstash
     group: logstash
     mode: '0600'
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   become: true
 
 # We are in the kibana playbook but starting logstash here now
@@ -209,7 +222,7 @@
     state: started
     enabled: true
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 # For slower connections and to make sure ES is listening
 # we will wait for TCP/9200 to become available
@@ -259,7 +272,7 @@
     connect_timeout: 5
     timeout: 420
     state: started
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   become: true
 
 # Make sure TCP/5044 is up and listening for logstash
@@ -273,7 +286,7 @@
     connect_timeout: 5
     timeout: 420
     state: started
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   become: true
 
 # Populate elasticsearch with local syslog data
@@ -281,7 +294,7 @@
   lineinfile:
     dest: /etc/rsyslog.conf
     line: "*.* @localhost:{{ logstash_localsyslog_port }}"
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   register: logstash_rsyslog_config
   become: true
 
@@ -290,13 +303,13 @@
     name: rsyslog
     state: restarted
   when:
-    - logging_backend != 'fluentd'
+    - effective_logging_backend != 'fluentd'
     - logstash_rsyslog_config.changed
   become: true
 
 - name: Refresh fluentd service
   service:
-    name: td-agent
+    name: fluentd
     state: restarted
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
   become: true

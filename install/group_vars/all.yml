@@ -92,22 +92,19 @@ es_listen_external: false
 install_curator_tool: false
 
 ### X-PACK ###
-# This installs an additional suite of tools from elastic
-# https://www.elastic.co/guide/en/x-pack/current/xpack-introduction.html
-# Note: X-Pack will wrap ES with additional authentication, I do not
-# configure this for you, only install it.
-# Most people will not need this for basic ELK usage.
-# Default login/pass to Kibana for example is:
+# NOTE: As of Elasticsearch 6.3+, X-Pack features are built-in and no longer
+# require separate plugin installation. For ELK 9.x, X-Pack is fully integrated.
+# Security features can be enabled in elasticsearch.yml configuration directly.
+# The following variables are kept for backward compatibility with some tasks
+# but the separate x-pack role has been removed.
+# Default credentials (if security is manually enabled):
 # username: elastic
 # password: changeme
-# DO NOT CHANGE THIS UNLESS YOU CHANGE IT ON ES
 xpack_elastic_user_password: changeme
 
-# Install elastic x-pack
+# Legacy X-Pack variables (no longer install separate plugins in 9.x)
 install_elasticsearch_xpack: false
-# Install kibana x-pack
 install_kibana_xpack: false
-# Install logstash x-pack
 install_logstash_xpack: false
 
 # Install Metricbeat

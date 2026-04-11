@@ -3,7 +3,7 @@
 # install/run metricbeat elk client
 #
 - name: Configure Metricbeat
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   become: true
   block:
     - name: Install metricbeat package

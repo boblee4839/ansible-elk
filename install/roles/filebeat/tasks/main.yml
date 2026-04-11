@@ -16,7 +16,7 @@
     name: filebeat
     state: present
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Generate filebeat configuration template
   ansible.builtin.template:
@@ -26,7 +26,7 @@
     group: root
     mode: '0644'
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
   register: filebeat_config
 
 - name: Ensure filebeat service is started and enabled
@@ -35,7 +35,7 @@
     state: started
     enabled: true
   become: true
-  when: logging_backend != 'fluentd'
+  when: effective_logging_backend != 'fluentd'
 
 - name: Restart filebeat if configuration changed
   ansible.builtin.service:
@@ -43,7 +43,7 @@
     state: restarted
   become: true
   when:
-    - logging_backend != 'fluentd'
+    - effective_logging_backend != 'fluentd'
     - filebeat_config.changed
 
 - name: Install rsyslog package
@@ -51,7 +51,7 @@
     name: rsyslog
     state: present
   become: true
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
 
 - name: Setup rsyslogd for fluentd
   ansible.builtin.lineinfile:
@@ -59,7 +59,7 @@
     line: "*.* @{{ elk_server }}:{{ fluentd_syslog_port }}"
     state: present
   become: true
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
   register: rsyslog_main_config
 
 - name: Setup common OpenStack rsyslog logging
@@ -70,7 +70,7 @@
     group: root
     mode: '0644'
   become: true
-  when: logging_backend == 'fluentd'
+  when: effective_logging_backend == 'fluentd'
   register: rsyslog_openstack_config
 
 - name: Restart rsyslog if configuration changed
@@ -79,5 +79,5 @@
     state: restarted
   become: true
   when:
-    - logging_backend == 'fluentd'
+    - effective_logging_backend == 'fluentd'
     - rsyslog_main_config.changed or rsyslog_openstack_config.changed

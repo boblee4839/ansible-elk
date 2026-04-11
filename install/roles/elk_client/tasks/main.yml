@@ -13,7 +13,7 @@
 
     - name: Import ElasticSearch GPG Key
       ansible.builtin.rpm_key:
-        key: http://packages.elastic.co/GPG-KEY-elasticsearch
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
         state: present
 
 - name: Configure ElasticSearch Repository (Debian Family)
@@ -26,7 +26,7 @@
 
     - name: Import ElasticSearch GPG Key
       ansible.builtin.apt_key:
-        url: http://packages.elastic.co/GPG-KEY-elasticsearch
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
         state: present
 
 - name: Creates ELK Cert Directory
