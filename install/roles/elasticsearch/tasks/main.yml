@@ -118,6 +118,7 @@
 - name: Apply workaround for java listening port
   command: "setcap 'cap_net_bind_service=+ep' {{ java_real_path.stdout }}"
   become: true
+  changed_when: false
   ignore_errors: true
   when: java_real_path.rc == 0
 
