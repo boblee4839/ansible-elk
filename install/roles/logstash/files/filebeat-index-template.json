@@ -1,8 +1,14 @@
 {
-  "mappings": {
-    "_default_": {
+  "index_patterns": ["filebeat-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "index.mapping.total_fields.limit": 10000,
+      "index.refresh_interval": "5s"
+    },
+    "mappings": {
       "_meta": {
-        "version": "6.0.0-alpha1"
+        "version": "9.0.0"
       },
       "date_detection": false,
       "dynamic_templates": [
@@ -452,11 +458,5 @@
         }
       }
     }
-  },
-  "order": 0,
-  "settings": {
-    "index.mapping.total_fields.limit": 10000,
-    "index.refresh_interval": "5s"
-  },
-  "template": "filebeat-*"
+  }
 }

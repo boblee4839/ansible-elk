@@ -118,8 +118,8 @@
 
 - name: Load filebeat JSON index template
   ansible.builtin.uri:
-    url: http://localhost:9200/_template/filebeat?pretty
-    method: POST
+    url: http://localhost:9200/_index_template/filebeat?pretty
+    method: PUT
     body: "{{ lookup('file', 'filebeat-index-template.json') }}"
     body_format: json
   ignore_errors: true

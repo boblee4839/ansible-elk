@@ -1,22 +1,20 @@
 {
-  "mappings": {
-    "_default_": {
-      "_all": {
-        "enabled": true,
-        "norms": {
-          "enabled": false
-        }
-      },
+  "index_patterns": ["filebeat-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "index.refresh_interval": "5s",
+      "index.mapping.total_fields.limit": 10000
+    },
+    "mappings": {
       "dynamic_templates": [
         {
-          "template1": {
+          "strings_as_keyword": {
             "mapping": {
-              "doc_values": true,
               "ignore_above": 1024,
-              "index": "not_analyzed",
-              "type": "{dynamic_type}"
+              "type": "keyword"
             },
-            "match": "*"
+            "match_mapping_type": "string"
           }
         }
       ],
@@ -25,25 +23,22 @@
           "type": "date"
         },
         "message": {
-          "type": "string",
-          "index": "analyzed"
+          "type": "text",
+          "norms": false
         },
         "offset": {
-          "type": "long",
-          "doc_values": "true"
+          "type": "long"
         },
-        "geoip"  : {
-          "type" : "object",
+        "geoip": {
+          "type": "object",
           "dynamic": true,
-          "properties" : {
-            "location" : { "type" : "geo_point" }
+          "properties": {
+            "location": {
+              "type": "geo_point"
+            }
           }
         }
       }
     }
-  },
-  "settings": {
-    "index.refresh_interval": "5s"
-  },
-  "template": "filebeat-*"
+  }
 }
