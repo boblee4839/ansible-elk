@@ -108,21 +108,9 @@
   when: ansible_memory_mb.real.total|int < 65536
   register: es_jvm_end_low
 
-- name: Resolve Java real path for setcap
-  shell: readlink -f $(which java)
-  register: java_real_path
-  changed_when: false
-  become: true
-  ignore_errors: true
-
-- name: Apply workaround for java listening port
-  command: "setcap 'cap_net_bind_service=+ep' {{ java_real_path.stdout }}"
-  become: true
-  changed_when: false
-  ignore_errors: true
-  when: java_real_path.rc == 0
-
 # Removed obsolete RHEL6/7 libjli/symlink workarounds not required for RHEL 8+
+# Also removed setcap workaround - ES uses non-privileged ports (9200/9300)
+# and applying setcap to system-wide Java binary is a security risk
 
 - name: Create log directory structure for ES
   file:

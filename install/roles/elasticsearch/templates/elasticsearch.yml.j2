@@ -91,3 +91,13 @@ network.host: 0.0.0.0
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true
+
+# --------------------------------- Security -----------------------------------
+#
+# Disable X-Pack security for basic dev/test deployments
+# NOTE: Elasticsearch 9.x enables security by default with auto-generated passwords
+# and SSL certificates. For production, remove these settings and configure proper
+# authentication and TLS. See: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
+#
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false

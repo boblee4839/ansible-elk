@@ -16,6 +16,9 @@ Ansible Playbook for setting up the ELK/EFK Stack and Filebeat client on remote 
     - [Hardware Requirements](#hardware-requirements)
     - [Software Requirements](#software-requirements)
   - [Notes](#notes)
+  - [Security and Authentication](#security-and-authentication)
+    - [Authentication Architecture](#authentication-architecture)
+    - [Production Security Considerations](#production-security-considerations)
   - [Migration from 6.x to 9.x](#migration-from-6x-to-9x)
     - [Key Breaking Changes in ES 9.x](#key-breaking-changes-in-es-9x)
   - [ELK/EFK Server Instructions](#elkefk-server-instructions)
@@ -108,7 +111,8 @@ sysctl -p
 ## Notes
 
 - Current ELK version is **9.x** - major upgrade from previous 6.x series
-- Sets the nginx htpasswd to admin/admin initially
+- Sets the nginx htpasswd to admin/admin initially (see [Security and Authentication](#security-and-authentication) section)
+- Elasticsearch security disabled by default for dev/test deployments
 - nginx ports default to 80/8080 for Kibana and SSL cert retrieval (configurable)
 - Uses OpenJDK 17 for Java (required for ES 9.x)
 - Deployment takes around 3-5 minutes on a test VM
@@ -122,6 +126,40 @@ sysctl -p
   - Logstash backend (default) works on **all** supported platforms
 - Install curator by setting `install_curator_tool: true` in `install/group_vars/all.yml`
 - **X-Pack Note**: As of Elasticsearch 6.3+, X-Pack features are built directly into the stack and no longer require separate plugin installation. Security, monitoring, and other features can be enabled via configuration in `elasticsearch.yml`.
+
+## Security and Authentication
+
+This playbook is designed for **development and testing environments** with a simplified security model:
+
+### Authentication Architecture
+
+- **Kibana Web Access**: Protected by HTTP Basic Auth via nginx reverse proxy
+  - Default credentials: `admin` / `admin` (configurable in `install/group_vars/all.yml`)
+  - Change `kibana_user` and `kibana_password` for custom credentials
+- **Elasticsearch API**: Security disabled by default (`xpack.security.enabled: false`)
+  - Elasticsearch listens on localhost:9200 without authentication
+  - Safe for single-server dev/test deployments behind a firewall
+  - For production, enable ES security and configure TLS (see Production Security below)
+
+### Production Security Considerations
+
+> [!WARNING]
+> The default configuration is **NOT suitable for production** or internet-exposed systems.
+
+For production deployments:
+
+1. **Enable Elasticsearch Security**: Remove or comment out these lines in `install/roles/elasticsearch/templates/elasticsearch.yml.j2`:
+   ```yaml
+   xpack.security.enabled: false
+   xpack.security.http.ssl.enabled: false
+   ```
+2. **Configure TLS**: Set up proper SSL certificates for ES HTTP and transport layers
+3. **Set Strong Passwords**: Update `kibana_user`, `kibana_password`, and ES `elastic` user credentials
+4. **Use Auto-Generated Credentials**: ES 9.x auto-generates secure passwords on first startup when security is enabled
+5. **Enable Firewall Rules**: Ensure `manage_firewall: true` in `group_vars/all.yml`
+6. **Restrict ES Network Access**: Set `es_listen_external: false` (default) to limit ES to localhost
+
+See the [Elasticsearch Security Documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html) for detailed configuration.
 
 ## Migration from 6.x to 9.x
 
@@ -167,11 +205,14 @@ ansible_system_user: ec2-user
 ansible-playbook -i hosts install/elk.yml
 ```
 
-- (see playbook messages)
-- Navigate to the ELK at http://host-01:80 (default, nginx) or http://host-01/kibana (apache)
-- Default login is:
-  - username: `admin`
-  - password: `admin`
+- (see playbook messages for completion status and next steps)
+- Navigate to Kibana:
+  - **Nginx (default)**: http://host-01:80
+  - **Apache**: http://host-01/kibana
+- **Login with nginx/apache HTTP Basic Auth** (not Elasticsearch credentials):
+  - Username: `admin`
+  - Password: `admin`
+  - *Note*: This is the nginx/apache htpasswd authentication, not Elasticsearch. ES security is disabled by default for dev/test.
 
 ### Create your Kibana Index Pattern
 

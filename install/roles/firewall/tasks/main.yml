@@ -80,9 +80,27 @@
   become: true
 
 # Persist Iptables Rules
-- name: Save iptables rules
+- name: Save iptables rules (RedHat/Rocky)
   ansible.builtin.command: service iptables save
   when:
     - not is_firewalld_active
     - iptables_update.changed
+    - ansible_os_family == 'RedHat'
+  become: true
+
+- name: Ensure iptables-persistent package is installed (Debian/Ubuntu)
+  ansible.builtin.package:
+    name: iptables-persistent
+    state: present
+  when:
+    - not is_firewalld_active
+    - ansible_os_family == 'Debian'
+  become: true
+
+- name: Save iptables rules (Debian/Ubuntu)
+  ansible.builtin.shell: iptables-save > /etc/iptables/rules.v4
+  when:
+    - not is_firewalld_active
+    - iptables_update.changed
+    - ansible_os_family == 'Debian'
   become: true

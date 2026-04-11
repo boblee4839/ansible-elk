@@ -97,6 +97,13 @@ install_curator_tool: false
 # Security features can be enabled in elasticsearch.yml configuration directly.
 # The following variables are kept for backward compatibility with some tasks
 # but the separate x-pack role has been removed.
+#
+# IMPORTANT: By default, this playbook DISABLES security (xpack.security.enabled: false)
+# in elasticsearch.yml.j2 for basic dev/test deployments. If you enable security,
+# you must either:
+#   1. Update xpack_elastic_user_password below with the auto-generated password from
+#      ES logs, OR
+#   2. Use the elasticsearch-reset-password tool to set a known password
 # Default credentials (if security is manually enabled):
 # username: elastic
 # password: changeme
