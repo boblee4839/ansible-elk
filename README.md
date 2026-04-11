@@ -68,7 +68,7 @@ Choose the appropriate branch based on your OS and desired Elasticsearch version
 
 ## What does it do?
 
-- Automated deployment of a full **9.x series** ELK or EFK stack (Elasticsearch, Logstash/Fluentd, Kibana)
+- Automated deployment of a single-node full **9.x series** ELK or EFK stack (Elasticsearch, Logstash/Fluentd, Kibana)
   - Uses Nginx as a reverse proxy for Kibana, or optionally Apache via `apache_reverse_proxy: true`
   - Generates SSL certificates for Filebeat or Logstash-forwarder
   - Adds either iptables or firewalld rules if firewall is active
