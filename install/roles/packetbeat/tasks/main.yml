@@ -2,30 +2,39 @@
 #
 # install/run packetbeat elk client
 #
-- name: Install packetbeat rpms
-  yum:
-    name: [packetbeat, libpcap]
+- name: Install packetbeat packages
+  ansible.builtin.package:
+    name:
+      - packetbeat
+      - "{{ 'libpcap' if ansible_os_family == 'RedHat' else 'libpcap0.8' }}"
+    state: present
   become: true
-  when: (logging_backend != 'fluentd')
+  when: effective_logging_backend != 'fluentd'
 
 - name: Generate packetbeat configuration template
-  template:
-    src=packetbeat.yml.j2
-    dest=/etc/packetbeat/packetbeat.yml
-    owner=root
-    group=root
-    mode=0644
+  ansible.builtin.template:
+    src: packetbeat.yml.j2
+    dest: /etc/packetbeat/packetbeat.yml
+    owner: root
+    group: root
+    mode: '0644'
   become: true
-  when: (logging_backend != 'fluentd')
-  register: packetbeat_needs_restart
+  when: effective_logging_backend != 'fluentd'
+  register: packetbeat_config
 
-- name: Start packetbeat service
-  command: systemctl start packetbeat.service
-  ignore_errors: true
+- name: Ensure packetbeat service is enabled and started
+  ansible.builtin.service:
+    name: packetbeat
+    state: started
+    enabled: true
   become: true
-  when: ((packetbeat_needs_restart != 0) and (logging_backend != 'fluentd'))
+  when: effective_logging_backend != 'fluentd'
 
-- name: Setup packetbeat service
-  service: name=packetbeat state=started enabled=true
+- name: Restart packetbeat service if configuration changed
+  ansible.builtin.service:
+    name: packetbeat
+    state: restarted
   become: true
-  when: (logging_backend != 'fluentd')
+  when:
+    - effective_logging_backend != 'fluentd'
+    - packetbeat_config.changed

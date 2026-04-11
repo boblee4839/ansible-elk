@@ -1,6 +1,6 @@
-[curator-5]
-name=CentOS/RHEL 7 repository for Elasticsearch Curator 5.x packages
-baseurl=https://packages.elastic.co/curator/5/centos/7
+[curator-9]
+name=RHEL/Rocky repository for Elasticsearch Curator 9.x packages
+baseurl=https://artifacts.elastic.co/packages/9.x/yum
 gpgcheck=1
-gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1

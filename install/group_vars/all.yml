@@ -5,11 +5,12 @@
 ansible_system_user: root
 
 # EPEL Repository for extra packages
-epel_repo: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+epel_repo: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm"
 
 ########################################
 # ELK Server Variables
 ########################################
+
 ### FIREWALL MANAGEMENT ###
 # By default we will enable firewall management, this
 # will ensure if you're using either firewalld or iptables-services
@@ -21,93 +22,103 @@ epel_repo: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rp
 # equivalent firewall ports below or turn it off entirely (not recommended)
 # even if you leave firewall rules off you can safely leave this enabled
 # as the current firewall code will detect this and leave it alone.
-# if you really, really want to disable checking/applying service firewall rules
+# If you really, really want to disable checking/applying service firewall rules
 # then change to 'false' or empty
 manage_firewall: true
 
-### reverse proxy ###
-# we use a reverse proxy with the default being nginx
-# change apache_reverse_proxy: true if you want apache instead of nginx
+### Reverse Proxy ###
+# We use a reverse proxy with the default being nginx
+# Change apache_reverse_proxy: true if you want apache instead of nginx
 #
-apache_reverse_proxy:
+apache_reverse_proxy: false
 
-### nginx ###
-# add nonstandard port here for undercloud usage
-# note: you should use nonstandard ports for both here
+### Nginx ###
+# Add nonstandard port here for undercloud usage
+# Note: you should use nonstandard ports for both here
 # if you choose to do this.
 #
-# usage: port www listens to reverse-proxy Kibana
-# default is 80
+# Usage: port www listens to reverse-proxy Kibana
+# Default is 80
 # e.g. 8888
 www_kibana_port: 80
 #
-# usage: port filebeat client grabs the client SSL certificate
-# default is 8080
+# Usage: port filebeat client grabs the client SSL certificate
+# Default is 8080
 # e.g. 9999
 elk_server_ssl_cert_port: 8080
 #
 # Kibana options
-# change this to affect nginx-wrapped htpasswd authentication
+# Change this to affect nginx-wrapped htpasswd authentication
 kibana_user: admin
 kibana_password: admin
 
-### logging backend ###
-# you can pick between logstash or fluentd
-# if left empty logstash will be used
-### accepted options ###
+### Logging Backend ###
+# You can pick between logstash or fluentd
+# If left empty logstash will be used
+### Accepted Options ###
 # logging_backend:
 # logging_backend: logstash
 # logging_backend: fluentd
-logging_backend:
-#
-### logstash options ###
+logging_backend: ""
+
+### Logstash Options ###
 logstash_syslog_port: 5044
 logstash_localsyslog_port: 5000
-### rsyslog options
-# set this to true if you want to accept
+
+### Rsyslog Options ###
+# Set this to true if you want to accept
 # external syslog traffic
 syslog_listen_external: false
-### fluentd options ###
+
+### Fluentd Options ###
 fluentd_syslog_port: 42185
 fluentd_http_port: 9919
 fluentd_debug_port: 24230
-## elasticsearch local port listener
-# general usage will not need elasticsearch listening
+
+### Elasticsearch Local Port Listener ###
+# General usage will not need elasticsearch listening
 # outside of localhost, if you want to apply firewall rules
 # to allow external connections to elasticsearch change the below setting
 # to true
-# we will set this to false by default
+# We will set this to false by default
 es_local_port: 9200
 es_listen_external: false
-### install curator tool ###
-# curator is the recommended tool for managing elasticsearch indexes
+
+### Install Curator Tool ###
+# Curator is the recommended tool for managing elasticsearch indexes
 # https://www.elastic.co/guide/en/elasticsearch/client/curator/current/index.html
-# default is no (set to blank) or false
-# set the below variable to 'true' to activate
+# Default is no (set to blank) or false
+# Set the below variable to 'true' to activate
 install_curator_tool: false
-## X-PACK
-# This installs an additional suite of tools from elastic
-# https://www.elastic.co/guide/en/x-pack/current/xpack-introduction.html
-# note: X-Pack will wrap ES with additional authentication, I do not
-# configure this for you, only install it.
-# most people will not need this for basic ELK usage.
-# default login/pass to Kibana for example is:
+
+### X-PACK ###
+# NOTE: As of Elasticsearch 6.3+, X-Pack features are built-in and no longer
+# require separate plugin installation. For ELK 9.x, X-Pack is fully integrated.
+# Security features can be enabled in elasticsearch.yml configuration directly.
+# The following variables are kept for backward compatibility with some tasks
+# but the separate x-pack role has been removed.
+#
+# IMPORTANT: By default, this playbook DISABLES security (xpack.security.enabled: false)
+# in elasticsearch.yml.j2 for basic dev/test deployments. If you enable security,
+# you must either:
+#   1. Update xpack_elastic_user_password below with the auto-generated password from
+#      ES logs, OR
+#   2. Use the elasticsearch-reset-password tool to set a known password
+# Default credentials (if security is manually enabled):
 # username: elastic
 # password: changeme
-# DO NOT CHANGE THIS UNLESS YOU CHANGE IT ON ES
 xpack_elastic_user_password: changeme
-# install elastic x-pack
+
+# Legacy X-Pack variables (no longer install separate plugins in 9.x)
 install_elasticsearch_xpack: false
-# install kibana x-pack
 install_kibana_xpack: false
-# install logstash x-pack
 install_logstash_xpack: false
 
-#Install Metricbeat
+# Install Metricbeat
 install_metricbeat: false
-#Install Packetbeat
+# Install Packetbeat
 install_packetbeat: false
 
-#This should be installed on only one server in your environment.
-#Install Heartbeat
+# This should be installed on only one server in your environment.
+# Install Heartbeat
 install_heartbeat: false

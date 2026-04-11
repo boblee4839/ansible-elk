@@ -40,7 +40,7 @@
 #
 # Lock the memory on startup:
 #
-#bootstrap.memory_lock: true
+bootstrap.memory_lock: true
 #
 # Make sure that the heap size is set to about half the memory available
 # on the system and that the owner of the process is allowed to use this
@@ -70,13 +70,13 @@ network.host: 0.0.0.0
 # Pass an initial list of hosts to perform discovery when new node is started:
 # The default list of hosts is ["127.0.0.1", "[::1]"]
 #
-#discovery.zen.ping.unicast.hosts: ["host1", "host2"]
+#discovery.seed_hosts: ["host1", "host2"]
 #
-# Prevent the "split brain" by configuring the majority of nodes (total number of master-eligible nodes / 2 + 1):
+# Bootstrap the cluster using an initial set of master-eligible nodes:
 #
-#discovery.zen.minimum_master_nodes: 3
+#cluster.initial_master_nodes: ["node-1", "node-2", "node-3"]
 #
-# For more information, consult the zen discovery module documentation.
+# For more information, consult the discovery and cluster formation documentation.
 #
 # ---------------------------------- Gateway -----------------------------------
 #
@@ -91,3 +91,13 @@ network.host: 0.0.0.0
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true
+
+# --------------------------------- Security -----------------------------------
+#
+# Disable X-Pack security for basic dev/test deployments
+# NOTE: Elasticsearch 9.x enables security by default with auto-generated passwords
+# and SSL certificates. For production, remove these settings and configure proper
+# authentication and TLS. See: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
+#
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false

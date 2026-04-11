@@ -1,103 +1,144 @@
 ---
 #
-# Install/run fluentd
+# Install/run fluentd (fluent-package v6 LTS)
+#
+# Note: This role is only executed on platforms that support fluent-package v6.
+# The main playbook automatically falls back to logstash on unsupported platforms.
 #
 
-- name: Copy fluentd yum repo file
-  copy:
-    src=fluentd.repo
-    dest=/etc/yum.repos.d/fluentd.repo
-    owner=root
-    group=root
-    mode=0644
+- name: Setup Fluentd Repository (RedHat/Rocky)
+  when: ansible_os_family == "RedHat"
   become: true
+  block:
+    - name: Copy fluentd yum repo file
+      ansible.builtin.copy:
+        src: fluentd.repo
+        dest: /etc/yum.repos.d/fluentd.repo
+        owner: root
+        group: root
+        mode: '0644'
 
-- name: Import fluentd GPG Key
-  rpm_key: key=https://packages.treasuredata.com/GPG-KEY-td-agent
-    state=present
+    - name: Import fluentd GPG Key
+      ansible.builtin.rpm_key:
+        key: https://packages.treasuredata.com/GPG-KEY-td-agent
+        state: present
 
-- name: Install fluentd
-  yum:
-    name: [td-agent, gcc]
+    - name: Install fluent-package and dependencies
+      ansible.builtin.dnf:
+        name:
+          - fluent-package
+          - gcc
+        state: present
+
+- name: Setup Fluentd Repository (Debian/Ubuntu)
+  when: ansible_os_family == "Debian"
   become: true
+  block:
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gnupg2
+          - lsb-release
+          - build-essential
+        state: present
+        update_cache: true
+
+    - name: Add Fluentd GPG key
+      ansible.builtin.apt_key:
+        url: https://packages.treasuredata.com/GPG-KEY-td-agent
+        state: present
+
+    - name: Add fluent-package repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb https://packages.treasuredata.com/lts/6/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}/
+          {{ ansible_distribution_release }} contrib
+        state: present
+        filename: fluent-package
+
+    - name: Install fluent-package
+      ansible.builtin.apt:
+        name: fluent-package
+        state: present
 
 - name: Setup fluentd configuration files
-  template:
-    src=td-agent.conf.j2
-    dest=/etc/td-agent/td-agent.conf
-    owner=root
-    group=root
-    mode=0644
+  ansible.builtin.template:
+    src: fluentd.conf.j2
+    dest: /etc/fluent/fluentd.conf
+    owner: root
+    group: root
+    mode: '0644'
   become: true
-  register: fluentd_needs_restart
+  register: fluentd_config
 
-# this is for compability
-- name: Load OpenSSL CA Extended Configuration
-  template:
-    src=openssl_extras.cnf.j2
-    dest=/etc/pki/tls/openssl_extras.cnf
-    owner=root
-    group=root
-    mode=0644
+# Compatibility tasks (RedHat specific paths)
+- name: Configure OpenSSL (RedHat Family)
+  when: ansible_os_family == "RedHat"
   become: true
+  block:
+    - name: Load OpenSSL CA Extended Configuration
+      ansible.builtin.template:
+        src: openssl_extras.cnf.j2
+        dest: /etc/pki/tls/openssl_extras.cnf
+        owner: root
+        group: root
+        mode: '0644'
 
-# this is for compatibility
-- name: Check OpenSSL SANs (SubjectAltName) entry for CA
-  shell: grep "{{ ansible_default_ipv4.address }}" /etc/pki/tls/openssl.cnf | wc -l
-  ignore_errors: true
-  register: subjectAltName_exists
-  tags:
-    # Skip ANSIBLE0012 Commands should not change things if nothing needs doing
-    # Need to understand if an entry exists
-    - skip_ansible_lint
-  become: true
+    - name: Check OpenSSL SANs (SubjectAltName) entry for CA
+      ansible.builtin.shell: |
+        grep "{{ ansible_default_ipv4.address }}" /etc/pki/tls/openssl.cnf | wc -l
+      register: subject_alt_name_exists
+      changed_when: false
+      failed_when: false
 
-# this is for compability
-- name: Add OpenSSL SANs (SubjectAltName) entry for CA
-  lineinfile:
-    dest: /etc/pki/tls/openssl.cnf
-    line: 'subjectAltName = "IP: {{ ansible_default_ipv4.address }}"'
-    regexp: '^ Extensions for a typical CA'
-    insertbefore: '# Extensions for a typical CA'
-    backup: yes
-  when: subjectAltName_exists.stdout|int == 0
-  become: true
+    - name: Add OpenSSL SANs (SubjectAltName) entry for CA
+      ansible.builtin.lineinfile:
+        dest: /etc/pki/tls/openssl.cnf
+        line: 'subjectAltName = "IP: {{ ansible_default_ipv4.address }}"'
+        regexp: '^ Extensions for a typical CA'
+        insertbefore: '# Extensions for a typical CA'
+        backup: true
+      when: subject_alt_name_exists.stdout | int == 0
 
+# Install ES plugin (requires v6.0.0+ for Elasticsearch 9.x compatibility)
 - name: Install fluentd elasticsearch plugin
-  gem:
-    name=fluent-plugin-elasticsearch
-    state=latest
-    include_dependencies=yes
-    user_install=no
-    executable=/usr/sbin/td-agent-gem
+  community.general.gem:
+    name: fluent-plugin-elasticsearch
+    state: latest
+    include_dependencies: true
+    user_install: false
+    executable: /usr/sbin/fluent-gem
   become: true
-  ignore_errors: false
 
 - name: Install fluentd beats plugin
-  gem:
-    name=fluent-plugin-beats
-    state=latest
-    include_dependencies=yes
-    user_install=no
-    executable=/usr/sbin/td-agent-gem
+  community.general.gem:
+    name: fluent-plugin-beats
+    state: latest
+    include_dependencies: true
+    user_install: false
+    executable: /usr/sbin/fluent-gem
   become: true
-  ignore_errors: false
 
 - name: Load filebeat JSON index template
-  uri:
-    url: http://localhost:9200/_template/filebeat?pretty
-    method: POST
+  ansible.builtin.uri:
+    url: http://localhost:9200/_index_template/filebeat?pretty
+    method: PUT
     body: "{{ lookup('file', 'filebeat-index-template.json') }}"
     body_format: json
   ignore_errors: true
   become: true
 
-- name: Start fluentd service
-  command: systemctl start td-agent.service
-  ignore_errors: true
-  when: fluentd_needs_restart != 0
+- name: Start and enable fluentd service
+  ansible.builtin.service:
+    name: fluentd
+    state: started
+    enabled: true
   become: true
 
-- name: Setup fluentd service
-  service: name=td-agent state=started enabled=true
+- name: Restart fluentd if config changed
+  ansible.builtin.service:
+    name: fluentd
+    state: restarted
+  when: fluentd_config.changed
   become: true

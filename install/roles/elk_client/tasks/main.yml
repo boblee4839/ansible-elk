@@ -1,63 +1,55 @@
 ---
 
-- name: Copy ElasticSearch yum repo file
-  copy:
-    src=elk.repo
-    dest=/etc/yum.repos.d/elk.repo
-    owner=root
-    group=root
-    mode=0644
-  become: true
+- name: Configure ElasticSearch Repository (RedHat Family)
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: Copy ElasticSearch yum repo file
+      ansible.builtin.copy:
+        src: elk.repo
+        dest: /etc/yum.repos.d/elk.repo
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Import ElasticSearch GPG Key
+      ansible.builtin.rpm_key:
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+- name: Configure ElasticSearch Repository (Debian Family)
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Install apt-transport-https
+      ansible.builtin.apt:
+        name: apt-transport-https
+        state: present
+
+    - name: Import ElasticSearch GPG Key
+      ansible.builtin.apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
 
 - name: Creates ELK Cert Directory
-  file:
+  ansible.builtin.file:
     path: /etc/beat
     state: directory
-    mode: 0755
-  become: true
-
-- name: Import ElasticSearch GPG Key
-  rpm_key: key=http://packages.elastic.co/GPG-KEY-elasticsearch
-    state=present
-  become: true
-
-- name: Check ELK server SSL client certificate
-  stat: path=/etc/beat/beat-forwarder.crt
-  ignore_errors: true
-  register: elk_client_ssl_cert_exists
-  become: true
-
-- name: Remove old ELK SSL cert if it exists
-  file:
-    path: /etc/beat/beat-forwarder.crt
-    state: absent
-  when: (elk_client_ssl_cert_exists.stat.exists == True)
-  become: true
-
-- name: Remove old ELK SSL key if it exists
-  file:
-    path: /etc/beat/beat-forwarder.key
-    state: absent
-  when: (elk_client_ssl_cert_exists.stat.exists == True)
-  become: true
-
-- name: Check ELK server SSL client cert and key again
-  stat: path=/etc/beat/beat-forwarder.crt
-  ignore_errors: true
-  register: elk_client_ssl_cert_still_exists
+    mode: '0755'
   become: true
 
 - name: Install ELK server SSL client certificate
-  get_url:
-    url=http://{{ elk_server }}:{{ elk_server_ssl_cert_port }}/beat-forwarder.crt
-    dest=/etc/beat/beat-forwarder.crt
+  ansible.builtin.get_url:
+    url: "http://{{ elk_server }}:{{ elk_server_ssl_cert_port }}/beat-forwarder.crt"
+    dest: /etc/beat/beat-forwarder.crt
+    mode: '0644'
+    force: true
   become: true
-  when: (elk_client_ssl_cert_still_exists.stat.exists == False)
+  notify: restart filebeat
 
 - name: Install ELK server SSL client key
-  get_url:
-    url=http://{{ elk_server }}:{{ elk_server_ssl_cert_port }}/beat-forwarder.key
-    dest=/etc/beat/beat-forwarder.key
+  ansible.builtin.get_url:
+    url: "http://{{ elk_server }}:{{ elk_server_ssl_cert_port }}/beat-forwarder.key"
+    dest: /etc/beat/beat-forwarder.key
+    mode: '0644'
+    force: true
   become: true
-  when: (elk_client_ssl_cert_still_exists.stat.exists == False)
   notify: restart filebeat

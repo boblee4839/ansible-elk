@@ -3,120 +3,188 @@
 # Install/run elasticsearch
 #
 
-- name: Install libsemanage-python and dependencies
-  yum:
-    name: libsemanage-python
+- name: Install python3-libsemanage and dependencies (RedHat)
+  package:
+    name: python3-libsemanage
+    state: present
   become: true
+  when: ansible_os_family == 'RedHat'
 
-- name: Copy elasticsearch yum repo file
-  copy:
-    src=elasticsearch.repo
-    dest=/etc/yum.repos.d/elasticsearch.repo
-    owner=root
-    group=root
-    mode=0644
+- name: Install dependencies (Debian)
+  package:
+    name: apt-transport-https
+    state: present
   become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Copy elasticsearch yum repo file (RedHat)
+  copy:
+    src: elasticsearch.repo
+    dest: /etc/yum.repos.d/elasticsearch.repo
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  when: ansible_os_family == 'RedHat'
+
+- name: Import Elasticsearch GPG Key (Debian)
+  apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Add Elasticsearch repository (Debian)
+  apt_repository:
+    repo: "deb https://artifacts.elastic.co/packages/9.x/apt stable main"
+    state: present
+    filename: elasticsearch-9.x
+  become: true
+  when: ansible_os_family == 'Debian'
 
 - name: Install elasticsearch and openjdk
-  yum:
-    name: [elasticsearch, java-1.8.0-openjdk-headless]
+  package:
+    name:
+      - elasticsearch
+      - "{{ 'java-17-openjdk-headless' if ansible_os_family == 'RedHat' else 'openjdk-17-jre-headless' }}"
+    state: present
   become: true
 
 - name: Copy templated elasticsearch.yml
   template:
-    src=elasticsearch.yml.j2
-    dest=/etc/elasticsearch/elasticsearch.yml
-    owner=root
-    group=elasticsearch
-    mode=0660
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: '0660'
   become: true
-  ignore_errors: true
+  register: es_config_updated
 
 - name: Check if system memory is greater than 64G
-  debug: msg="System memory is {{ansible_memory_mb.real.total | int}} so setting heapsize to 32G upper limit"
+  debug:
+    msg: "System memory is {{ ansible_memory_mb.real.total | int }} so setting heapsize to 32G upper limit"
   when: ansible_memory_mb.real.total|int >= 65536
   become: true
 
 - name: Apply heapsize start tuning for systems with greater than 64G memory
   lineinfile:
-    path=/etc/elasticsearch/jvm.options
-    regexp='^-Xms1g'
-    line='-Xms31g'
+    path: /etc/elasticsearch/jvm.options
+    regexp: '^-Xms'
+    line: '-Xms31g'
   when: ansible_memory_mb.real.total|int >= 65536
   become: true
+  register: es_jvm_start_high
 
 - name: Apply heapsize end tuning for systems with greater than 64G memory
   lineinfile:
-    path=/etc/elasticsearch/jvm.options
-    regexp='^-Xmx1g'
-    line='-Xmx31g'
+    path: /etc/elasticsearch/jvm.options
+    regexp: '^-Xmx'
+    line: '-Xmx31g'
   when: ansible_memory_mb.real.total|int >= 65536
-  register: elasticsearch_updated
   become: true
+  register: es_jvm_end_high
 
 - name: Print extended documentation for heapsize tuning
-  debug: msg="Refer to https://www.elastic.co/guide/en/elasticsearch/guide/current/_limiting_memory_usage.html"
+  debug:
+    msg: "Refer to https://www.elastic.co/guide/en/elasticsearch/guide/current/_limiting_memory_usage.html"
   when: ansible_memory_mb.real.total|int >= 65536
   become: true
 
 - name: Update elasticsearch startup with start heap size
   become: true
   lineinfile:
-    path=/etc/elasticsearch/jvm.options
-    regexp='^-Xms1g'
-    line='-Xms{{ (ansible_memory_mb.real.total / 2) | int }}m'
+    path: /etc/elasticsearch/jvm.options
+    regexp: '^-Xms'
+    line: '-Xms{{ (ansible_memory_mb.real.total / 2) | int }}m'
   when: ansible_memory_mb.real.total|int < 65536
+  register: es_jvm_start_low
 
 - name: Update elasticsearch startup with end heap size
   become: true
   lineinfile:
-    path=/etc/elasticsearch/jvm.options
-    regexp='^-Xmx1g'
-    line='-Xmx{{ (ansible_memory_mb.real.total / 2) | int }}m'
+    path: /etc/elasticsearch/jvm.options
+    regexp: '^-Xmx'
+    line: '-Xmx{{ (ansible_memory_mb.real.total / 2) | int }}m'
   when: ansible_memory_mb.real.total|int < 65536
-  register: elasticsearch_updated
+  register: es_jvm_end_low
 
-- name: Apply workaround for java listening port
-  raw: setcap 'cap_net_bind_service=+ep' /usr/lib/jvm/jre/bin/java
-  become: true
+# Removed obsolete RHEL6/7 libjli/symlink workarounds not required for RHEL 8+
+# Also removed setcap workaround - ES uses non-privileged ports (9200/9300)
+# and applying setcap to system-wide Java binary is a security risk
 
-# https://www.centos.org/forums/viewtopic.php?t=16398
-- name: Obtain exact version of JRE for libjli.so workaround
-  shell: "ls /usr/lib/jvm/ | grep java | grep openjdk-1"
-  register: libjli_location
-  become: true
-
-- name: Apply EL symlink workaround for libjli.so
-  file:
-    src='/usr/lib/jvm/{{libjli_location.stdout}}/jre/lib/amd64/jli/libjli.so'
-    dest='/lib64/libjli.so'
-    state=link
-  become: true
-
-# this seems like a packaging bug for 6.x
 - name: Create log directory structure for ES
   file:
     path: /usr/share/elasticsearch/logs
     state: directory
     owner: elasticsearch
     group: elasticsearch
-    mode: 0755
+    mode: '0755'
 
-# another packaging bug, this should be done by RPM
 - name: Create datadir for elasticsearch
   file:
     path: /usr/share/elasticsearch/data
     state: directory
     owner: elasticsearch
     group: elasticsearch
-    mode: 0755
+    mode: '0755'
 
-- name: Start or restart elasticsearch service
-  command: systemctl restart elasticsearch.service
-  ignore_errors: true
-  when: elasticsearch_updated != 0
+- name: Configure vm.max_map_count for Elasticsearch
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    state: present
+    sysctl_file: /etc/sysctl.d/99-elasticsearch.conf
+    reload: true
   become: true
 
-- name: Setup elasticsearch service to autostart
-  service: name=elasticsearch state=started enabled=true
+- name: Create systemd override directory for elasticsearch
+  file:
+    path: /etc/systemd/system/elasticsearch.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Configure systemd limits for Elasticsearch
+  copy:
+    dest: /etc/systemd/system/elasticsearch.service.d/override.conf
+    content: |
+      [Service]
+      # Increase file descriptor limit
+      LimitNOFILE=65535
+      # Increase process/thread limit
+      LimitNPROC=4096
+      # Allow memory locking for bootstrap.memory_lock
+      LimitMEMLOCK=infinity
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: es_systemd_limits
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: true
+  become: true
+  when: es_systemd_limits.changed
+
+- name: Restart elasticsearch if configuration changed
+  service:
+    name: elasticsearch
+    state: restarted
+  become: true
+  when: >
+    es_config_updated.changed or
+    es_jvm_start_high.changed | default(false) or
+    es_jvm_end_high.changed | default(false) or
+    es_jvm_start_low.changed | default(false) or
+    es_jvm_end_low.changed | default(false) or
+    es_systemd_limits.changed | default(false)
+
+- name: Ensure elasticsearch service is started and enabled
+  service:
+    name: elasticsearch
+    state: started
+    enabled: true
   become: true

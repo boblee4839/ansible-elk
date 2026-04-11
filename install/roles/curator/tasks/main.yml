@@ -3,58 +3,84 @@
 # install curator tool for managing elasticsearch
 #
 
-- name: Copy curator yum repo file
-  copy:
-    src=curator.repo
-    dest=/etc/yum.repos.d/curator.repo
-    owner=root
-    group=root
-    mode=0644
+- name: Setup Curator repository (RedHat/Rocky)
+  when:
+    - install_curator_tool
+    - ansible_os_family == 'RedHat'
   become: true
-  when: install_curator_tool
+  block:
+    - name: Copy curator yum repo file
+      copy:
+        src: curator.repo
+        dest: /etc/yum.repos.d/curator.repo
+        owner: root
+        group: root
+        mode: '0644'
 
-- name: Import curator GPG Key
-  rpm_key: key=http://packages.elastic.co/GPG-KEY-elasticsearch
-    state=present
+    - name: Import curator GPG Key
+      rpm_key:
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+- name: Setup Curator repository (Debian/Ubuntu)
+  when:
+    - install_curator_tool
+    - ansible_os_family == 'Debian'
+  become: true
+  block:
+    - name: Install apt-transport-https
+      apt:
+        name: apt-transport-https
+        state: present
+
+    - name: Import curator GPG Key
+      apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: Add Curator repository
+      apt_repository:
+        repo: deb https://artifacts.elastic.co/packages/9.x/apt stable main
+        state: present
+        filename: curator-9.x
+
+- name: Install curator
   when: install_curator_tool
   become: true
-
-- name: Install curator and python-setuptools
-  yum:
+  package:
     name: elasticsearch-curator
-  become: true
-  when: install_curator_tool
+    state: present
 
 - name: Setup curator config
-  template:
-    src=curator-config.yml.j2
-    dest=/etc/elasticsearch/curator-config.yml
-    owner=root
-    group=root
-    mode=0644
-  become: true
   when: install_curator_tool
+  become: true
+  template:
+    src: curator-config.yml.j2
+    dest: /etc/elasticsearch/curator-config.yml
+    owner: root
+    group: root
+    mode: '0644'
 
 - name: Setup curator template file
-  template:
-    src=curator-action.yml.j2
-    dest=/etc/elasticsearch/curator-action.yml
-    owner=root
-    group=root
-    mode=0644
-  become: true
   when: install_curator_tool
+  become: true
+  template:
+    src: curator-action.yml.j2
+    dest: /etc/elasticsearch/curator-action.yml
+    owner: root
+    group: root
+    mode: '0644'
 
 # Runs cron job to cleanup indices every weekday.
 # you should adjust this to your needs
 - name: Curator Cleanup Cronjob
+  when: install_curator_tool
+  become: true
   cron:
     name: Curator run
-    weekday: '*'
-    minute: 0
-    hour: 12
+    weekday: "*"
+    minute: "0"
+    hour: "12"
     user: root
     job: "curator --config /etc/elasticsearch/curator-config.yml /etc/elasticsearch/curator-action.yml >> /var/log/curator.log 2>&1"
     cron_file: curator-daily-cleanup
-  when: install_curator_tool
-  become: true
