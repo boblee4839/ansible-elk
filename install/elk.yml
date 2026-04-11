@@ -9,7 +9,8 @@
 #  - 9.x (git branch master)
 #
 
-- hosts: elk
+- name: Install and configure ELK/EFK stack
+  hosts: elk
   remote_user: "{{ ansible_system_user }}"
   vars_files:
     - group_vars/all.yml

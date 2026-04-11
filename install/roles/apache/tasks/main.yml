@@ -17,7 +17,7 @@
 
 # SELinux boolean for httpd
 - name: Apply SELinux boolean httpd_can_network_connect
-  seboolean:
+  ansible.posix.seboolean:
     name: httpd_can_network_connect
     state: yes
     persistent: yes
