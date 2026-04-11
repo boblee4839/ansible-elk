@@ -36,9 +36,9 @@
 
 - name: Add Elasticsearch repository (Debian)
   apt_repository:
-    repo: "deb https://artifacts.elastic.co/packages/7.x/apt stable main"
+    repo: "deb https://artifacts.elastic.co/packages/9.x/apt stable main"
     state: present
-    filename: elasticsearch-7.x
+    filename: elasticsearch-9.x
   become: true
   when: ansible_os_family == 'Debian'
 
@@ -46,7 +46,7 @@
   package:
     name:
       - elasticsearch
-      - "{{ 'java-1.8.0-openjdk-headless' if ansible_os_family == 'RedHat' else 'default-jre-headless' }}"
+      - "{{ 'java-17-openjdk-headless' if ansible_os_family == 'RedHat' else 'openjdk-17-jre-headless' }}"
     state: present
   become: true
 

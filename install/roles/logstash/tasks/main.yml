@@ -36,9 +36,9 @@
 
 - name: Add Logstash repository (Debian/Ubuntu)
   ansible.builtin.apt_repository:
-    repo: "{{ logstash_apt_repo | default('deb https://artifacts.elastic.co/packages/7.x/apt stable main') }}"
+    repo: "{{ logstash_apt_repo | default('deb https://artifacts.elastic.co/packages/9.x/apt stable main') }}"
     state: present
-    filename: elastic-7.x
+    filename: elastic-9.x
   become: true
   when: ansible_os_family == 'Debian'
 

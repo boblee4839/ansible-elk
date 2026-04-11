@@ -15,6 +15,21 @@
   become: true
   when: ansible_os_family == 'RedHat'
 
+- name: Import Kibana GPG Key (Debian)
+  apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Add Kibana repository (Debian)
+  apt_repository:
+    repo: "deb https://artifacts.elastic.co/packages/9.x/apt stable main"
+    state: present
+    filename: kibana-9.x
+  become: true
+  when: ansible_os_family == 'Debian'
+
 - name: Install kibana packages
   package:
     name:
