@@ -227,14 +227,6 @@ The `2.4` branch provides Elasticsearch 2.x support for very old or resource-con
 ```
 .
 ├── hosts
-├── image
-│   ├── ansible-elk.png
-│   ├── elk6-0.png
-│   ├── elk6-1.png
-│   ├── elk6-2.png
-│   ├── elk6-3.png
-│   ├── elk6-4.png
-│   └── elk6-5.png
 ├── install
 │   ├── elk_client.yml
 │   ├── elk.yml
@@ -353,5 +345,5 @@ The `2.4` branch provides Elasticsearch 2.x support for very old or resource-con
 └── tests
     └── test-requirements.txt
 
-61 directories, 67 files
+60 directories, 59 files
 ```
