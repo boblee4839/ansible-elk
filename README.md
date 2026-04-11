@@ -32,7 +32,7 @@ Ansible Playbook for setting up the ELK/EFK Stack and Filebeat client on remote 
 > [!IMPORTANT]
 > **Major Version Update:** We now deploy **Elasticsearch 9.x** with significant changes:
 >
-> - **RHEL/CentOS 7 is NO LONGER SUPPORTED** (use `master` or `6.8` branches for EL7)
+> - **RHEL/CentOS 7 is NO LONGER SUPPORTED** (use `6.8` or older branches for EL7)
 > - Requires **Java 17** (automatically installed)
 > - Minimum supported OS: **RHEL/Rocky 8+**, **Ubuntu 20.04+**, **Debian 11+**
 > - Breaking configuration changes from 6.x/7.x - review migration notes below
@@ -88,10 +88,6 @@ Choose the appropriate branch based on your OS and desired Elasticsearch version
 - **RHEL/Rocky Linux:** 8, 9, 10
 - **Ubuntu LTS:** 20.04 (Focal), 22.04 (Jammy), 24.04 (Noble)
 - **Debian:** 11 (Bullseye), 12 (Bookworm)
-
-> [!WARNING]
-> **RHEL/CentOS 7 is NOT supported** on the `development` branch due to Java 17 requirements for Elasticsearch 9.x.
-> Use the `master` or `6.8` branch for RHEL7/CentOS7 deployments with Elasticsearch 6.x.
 
 ### Hardware Requirements
 
